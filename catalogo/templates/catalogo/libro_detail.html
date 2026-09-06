@@ -1,0 +1,30 @@
+{% extends "catalogo/base.html" %}
+
+{% block titulo %}{{ libro.titulo }}{% endblock %}
+
+{% block contenido %}
+<h1 class="mb-4">{{ libro.titulo }}</h1>
+
+<div class="card p-4 mb-4">
+    <dl class="row mb-0">
+        <dt class="col-sm-3">Autor</dt>
+        <dd class="col-sm-9">
+            <a href="{{ libro.autor.get_absolute_url }}">{{ libro.autor }}</a>
+        </dd>
+        <dt class="col-sm-3">ISBN</dt>
+        <dd class="col-sm-9">{{ libro.isbn }}</dd>
+        <dt class="col-sm-3">Año de publicación</dt>
+        <dd class="col-sm-9">{{ libro.anio_publicacion }}</dd>
+        <dt class="col-sm-3">Páginas</dt>
+        <dd class="col-sm-9">{{ libro.paginas }}</dd>
+        <dt class="col-sm-3">Estado</dt>
+        <dd class="col-sm-9">{% include "catalogo/_estado_badge.html" %}</dd>
+        <dt class="col-sm-3">Registrado</dt>
+        <dd class="col-sm-9">{{ libro.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+    </dl>
+</div>
+
+<a href="{% url 'catalogo:libro_editar' libro.pk %}" class="btn btn-primary">Editar</a>
+<a href="{% url 'catalogo:libro_eliminar' libro.pk %}" class="btn btn-danger">Eliminar</a>
+<a href="{% url 'catalogo:libro_lista' %}" class="btn btn-outline-secondary">Volver al listado</a>
+{% endblock %}

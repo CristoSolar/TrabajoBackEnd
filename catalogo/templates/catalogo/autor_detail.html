@@ -1,0 +1,39 @@
+{% extends "catalogo/base.html" %}
+
+{% block titulo %}{{ autor.nombre }}{% endblock %}
+
+{% block contenido %}
+<h1 class="mb-2">{{ autor.nombre }}</h1>
+<p class="text-muted mb-4">
+    {{ autor.nacionalidad }} · nacido en {{ autor.anio_nacimiento }} ·
+    {{ autor.total_libros }} libro{{ autor.total_libros|pluralize }} en catálogo
+</p>
+
+{% if autor.libros.all %}
+<table class="table table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Título</th>
+            <th>Año</th>
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for libro in autor.libros.all %}
+        <tr>
+            <td><a href="{{ libro.get_absolute_url }}">{{ libro.titulo }}</a></td>
+            <td>{{ libro.anio_publicacion }}</td>
+            <td>{% include "catalogo/_estado_badge.html" %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card p-4 text-center">
+    <p class="mb-2">Este autor aún no tiene libros en el catálogo.</p>
+    <p class="mb-0"><a href="{% url 'catalogo:libro_crear' %}">Agrega su primer libro</a>.</p>
+</div>
+{% endif %}
+
+<a href="{% url 'catalogo:autor_lista' %}" class="btn btn-outline-secondary">Volver a autores</a>
+{% endblock %}

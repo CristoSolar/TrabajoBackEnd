@@ -1,0 +1,17 @@
+{% extends "catalogo/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block titulo %}{% if form.instance.pk %}Editar libro{% else %}Nuevo libro{% endif %}{% endblock %}
+
+{% block contenido %}
+<h1 class="mb-4">{% if form.instance.pk %}Editar «{{ form.instance.titulo }}»{% else %}Nuevo libro{% endif %}</h1>
+
+<div class="card p-4 col-lg-8">
+    <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'catalogo:libro_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

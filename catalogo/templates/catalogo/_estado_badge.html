@@ -1,0 +1,7 @@
+{% if libro.estado == "DISPONIBLE" %}
+    <span class="badge badge-disponible">{{ libro.get_estado_display }}</span>
+{% elif libro.estado == "PRESTADO" %}
+    <span class="badge badge-prestado">{{ libro.get_estado_display }}</span>
+{% else %}
+    <span class="badge badge-baja">{{ libro.get_estado_display }}</span>
+{% endif %}

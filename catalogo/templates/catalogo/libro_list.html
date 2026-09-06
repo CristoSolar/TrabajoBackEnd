@@ -1,0 +1,79 @@
+{% extends "catalogo/base.html" %}
+
+{% block titulo %}Libros{% endblock %}
+
+{% block contenido %}
+<h1 class="mb-4">Catálogo de libros</h1>
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col-md-5">
+        <input type="text" name="q" value="{{ q }}" class="form-control"
+               placeholder="Buscar por título…">
+    </div>
+    <div class="col-md-4">
+        <select name="estado" class="form-select">
+            <option value="">Todos los estados</option>
+            {% for valor, etiqueta in estados %}
+                <option value="{{ valor }}" {% if valor == estado_actual %}selected{% endif %}>
+                    {{ etiqueta }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+    </div>
+</form>
+
+{% if libro_list %}
+<table class="table table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Título</th>
+            <th>Autor</th>
+            <th>Año</th>
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for libro in libro_list %}
+        <tr>
+            <td><a href="{{ libro.get_absolute_url }}">{{ libro.titulo }}</a></td>
+            <td>{{ libro.autor }}</td>
+            <td>{{ libro.anio_publicacion }}</td>
+            <td>{% include "catalogo/_estado_badge.html" %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+<nav>
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&estado={{ estado_actual }}">Anterior</a>
+            </li>
+        {% endif %}
+        <li class="page-item disabled">
+            <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        </li>
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&estado={{ estado_actual }}">Siguiente</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card p-4 text-center">
+    <p class="mb-2">No se encontraron libros con estos criterios.</p>
+    <p class="mb-0">
+        Prueba a limpiar los filtros o
+        <a href="{% url 'catalogo:libro_crear' %}">agrega el primer libro al catálogo</a>.
+    </p>
+</div>
+{% endif %}
+{% endblock %}

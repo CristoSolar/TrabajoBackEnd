@@ -1,0 +1,38 @@
+{% extends "catalogo/base.html" %}
+
+{% block titulo %}Autores{% endblock %}
+
+{% block contenido %}
+<h1 class="mb-4">Autores</h1>
+
+{% if autor_list %}
+<table class="table table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>Nacionalidad</th>
+            <th>Nacimiento</th>
+            <th>Libros en catálogo</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for autor in autor_list %}
+        <tr>
+            <td><a href="{{ autor.get_absolute_url }}">{{ autor.nombre }}</a></td>
+            <td>{{ autor.nacionalidad }}</td>
+            <td>{{ autor.anio_nacimiento }}</td>
+            <td>{{ autor.total_libros }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card p-4 text-center">
+    <p class="mb-2">Todavía no hay autores registrados.</p>
+    <p class="mb-0">
+        Ejecuta <code>python manage.py seed</code> para cargar datos de prueba
+        o crea un autor desde el <a href="/admin/">panel de administración</a>.
+    </p>
+</div>
+{% endif %}
+{% endblock %}
