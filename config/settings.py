@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -22,12 +23,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 # Clave SOLO para desarrollo. En producción debe leerse de una variable de
 # entorno (p. ej. os.environ["DJANGO_SECRET_KEY"]) y nunca versionarse.
-SECRET_KEY = 'django-insecure-CLAVE-DE-DESARROLLO-NO-USAR-EN-PRODUCCION'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-CLAVE-DE-DESARROLLO-NO-USAR-EN-PRODUCCION')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -80,12 +81,26 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# PostgreSQL cuando POSTGRES_HOST está definido (Docker); SQLite como
+# respaldo para desarrollo local rápido y pruebas sin servidor de BD.
+if os.environ.get('POSTGRES_HOST'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('POSTGRES_DB', 'catalogo'),
+            'USER': os.environ.get('POSTGRES_USER', 'catalogo'),
+            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+            'HOST': os.environ['POSTGRES_HOST'],
+            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation

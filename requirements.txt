@@ -2,3 +2,4 @@ Django>=5.2.8,<6.0
 django-crispy-forms>=2.3
 crispy-bootstrap5>=2024.2
 Faker>=30.0
+psycopg[binary]>=3.2

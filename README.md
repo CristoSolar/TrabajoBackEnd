@@ -2,14 +2,42 @@
 
 Aplicación web para gestionar el catálogo de una biblioteca (autores y libros),
 desarrollada para el módulo **Desarrollo de aplicaciones del lado del servidor**.
-Django 5.2 (LTS) + SQLite, con vistas basadas en clase, formularios validados,
+Django 5.2 (LTS) + PostgreSQL (Docker) o SQLite (local), con vistas basadas en clase, formularios validados,
 plantillas con herencia y datos de prueba generados con IA mediante Faker.
 
 ---
 
 ## 1. Instalación y ejecución
 
-Requisitos: Python 3.12+ y git.
+### Opción A: Docker (recomendada, usa PostgreSQL)
+
+Requisitos: Docker con Compose. Se levantan dos contenedores: `db`
+(PostgreSQL 17) y `web` (Django: sitio + panel `/admin/`).
+
+```bash
+git clone <URL-del-repositorio>
+cd TrabajoBackEnd
+cp .env.example .env            # opcional: ajustar credenciales
+docker compose up --build       # migra, crea superusuario y levanta el servidor
+```
+
+- Aplicación: <http://localhost:8000/>
+- Admin: <http://localhost:8000/admin/> (usuario `admin`, clave `admin1234`
+  por defecto; cambiar en `.env` con `DJANGO_SUPERUSER_*`).
+- Datos de prueba y pruebas dentro del contenedor:
+
+```bash
+docker compose exec web python manage.py seed --autores 10 --libros 40
+docker compose exec web python manage.py test
+```
+
+Los datos persisten en el volumen `pgdata`. `docker compose down -v` lo borra.
+
+### Opción B: Local con SQLite
+
+Requisitos: Python 3.12+ y git. Si `POSTGRES_HOST` no está definido,
+`settings.py` usa SQLite automáticamente, así que no hace falta instalar
+PostgreSQL para desarrollar o correr las pruebas.
 
 ```bash
 # 1. Clonar el repositorio
@@ -204,7 +232,7 @@ Decisiones:
 | `DEBUG` | `True` | `False` (nunca `True`: expone información sensible) |
 | `SECRET_KEY` | Clave de desarrollo en el código, marcada como tal | Variable de entorno, jamás en el repositorio |
 | `ALLOWED_HOSTS` | vacío (localhost) | Dominio real, p. ej. `["mibiblioteca.cl"]` |
-| Base de datos | SQLite (archivo local, ignorado por git) | PostgreSQL (concurrencia, respaldos) |
+| Base de datos | PostgreSQL en contenedor `db` (o SQLite si no hay `POSTGRES_HOST`) | PostgreSQL gestionado, respaldos automáticos |
 | Estáticos | Los sirve Django | `collectstatic` + Nginx |
 
 ### Alternativas de hosting
