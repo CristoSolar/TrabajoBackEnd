@@ -72,7 +72,7 @@
     <p class="mb-2">No se encontraron libros con estos criterios.</p>
     <p class="mb-0">
         Prueba a limpiar los filtros o
-        <a href="{% url 'catalogo:libro_crear' %}">agrega el primer libro al catálogo</a>.
+        {% if perms.catalogo.add_libro %}<a href="{% url 'catalogo:libro_crear' %}">agrega el primer libro al catálogo</a>.{% endif %}
     </p>
 </div>
 {% endif %}

@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-CLAVE-DE-DESARROLLO-NO-USAR-EN-PRODUCCION')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
+DEBUG = os.environ.get('DJANGO_DEBUG', '0') == '1'
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
@@ -143,3 +143,36 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Autenticación y sesiones
+# https://docs.djangoproject.com/en/5.2/topics/http/sessions/
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'catalogo:libro_lista'
+LOGOUT_REDIRECT_URL = 'catalogo:libro_lista'
+
+# La sesión caduca a los 30 minutos de inactividad: SESSION_SAVE_EVERY_REQUEST
+# renueva la cookie en cada petición, de modo que el plazo cuenta desde la
+# última actividad real del usuario y no desde el inicio de sesión.
+SESSION_COOKIE_AGE = 30 * 60
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Endurecimiento de cookies. Fuera de DEBUG se exige HTTPS.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Se activan al desplegar tras HTTPS (DJANGO_SSL_REDIRECT=1); quedan
+    # apagados por defecto para no romper entornos servidos por HTTP plano.
+    SECURE_SSL_REDIRECT = os.environ.get('DJANGO_SSL_REDIRECT', '0') == '1'
+    if SECURE_SSL_REDIRECT:
+        SECURE_HSTS_SECONDS = 31536000
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    X_FRAME_OPTIONS = 'DENY'

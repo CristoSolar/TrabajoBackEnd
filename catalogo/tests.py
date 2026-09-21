@@ -1,3 +1,4 @@
+from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
@@ -92,17 +93,76 @@ class VistasTests(TestCase):
         self.assertContains(respuesta, "Rayuela")
         self.assertNotContains(respuesta, "Bestiario")
 
-    def test_todas_las_rutas_responden_200(self):
+    def test_rutas_publicas_responden_200(self):
         libro = Libro.objects.get(titulo="Rayuela")
         rutas = [
             reverse("catalogo:libro_lista"),
             reverse("catalogo:libro_detalle", args=[libro.pk]),
-            reverse("catalogo:libro_crear"),
-            reverse("catalogo:libro_editar", args=[libro.pk]),
-            reverse("catalogo:libro_eliminar", args=[libro.pk]),
             reverse("catalogo:autor_lista"),
             reverse("catalogo:autor_detalle", args=[self.autor.pk]),
         ]
         for ruta in rutas:
             respuesta = self.client.get(ruta)
             self.assertEqual(respuesta.status_code, 200, f"Falló {ruta}")
+
+
+class SesionYPermisosTests(TestCase):
+    def setUp(self):
+        self.autor = Autor.objects.create(
+            nombre="Nicanor Parra", nacionalidad="Chile", anio_nacimiento=1914
+        )
+        self.libro = Libro.objects.create(
+            titulo="Poemas y antipoemas",
+            autor=self.autor,
+            isbn="9789561111114",
+            anio_publicacion=1954,
+            paginas=180,
+        )
+        self.bibliotecario = User.objects.create_user("biblio", password="clave-de-prueba-1")
+        self.bibliotecario.groups.add(Group.objects.get(name="Bibliotecarios"))
+        self.lector = User.objects.create_user("lector", password="clave-de-prueba-2")
+
+    def rutas_protegidas(self):
+        return [
+            reverse("catalogo:libro_crear"),
+            reverse("catalogo:libro_editar", args=[self.libro.pk]),
+            reverse("catalogo:libro_eliminar", args=[self.libro.pk]),
+        ]
+
+    def test_anonimo_es_redirigido_al_login(self):
+        for ruta in self.rutas_protegidas():
+            respuesta = self.client.get(ruta)
+            self.assertRedirects(respuesta, f"{reverse('login')}?next={ruta}")
+
+    def test_usuario_sin_permisos_recibe_403(self):
+        self.client.force_login(self.lector)
+        for ruta in self.rutas_protegidas():
+            respuesta = self.client.get(ruta)
+            self.assertEqual(respuesta.status_code, 403, f"Falló {ruta}")
+
+    def test_bibliotecario_accede_a_las_rutas_protegidas(self):
+        self.client.force_login(self.bibliotecario)
+        for ruta in self.rutas_protegidas():
+            respuesta = self.client.get(ruta)
+            self.assertEqual(respuesta.status_code, 200, f"Falló {ruta}")
+
+    def test_anonimo_no_puede_eliminar_por_post(self):
+        respuesta = self.client.post(
+            reverse("catalogo:libro_eliminar", args=[self.libro.pk])
+        )
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertTrue(Libro.objects.filter(pk=self.libro.pk).exists())
+
+    def test_login_y_logout_gestionan_la_sesion(self):
+        ok = self.client.login(username="biblio", password="clave-de-prueba-1")
+        self.assertTrue(ok)
+        self.assertIn("_auth_user_id", self.client.session)
+        self.client.post(reverse("logout"))
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_grupo_bibliotecarios_tiene_los_permisos_crud(self):
+        permisos = set(
+            Group.objects.get(name="Bibliotecarios")
+            .permissions.values_list("codename", flat=True)
+        )
+        self.assertTrue({"add_libro", "change_libro", "delete_libro"} <= permisos)

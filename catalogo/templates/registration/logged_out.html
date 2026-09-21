@@ -1,0 +1,11 @@
+{% extends "catalogo/base.html" %}
+
+{% block titulo %}Sesión cerrada{% endblock %}
+
+{% block contenido %}
+<div class="card p-4">
+    <h1 class="h4">Sesión cerrada</h1>
+    <p class="mb-0">Tu sesión se cerró correctamente.
+        <a href="{% url 'login' %}">Volver a entrar</a>.</p>
+</div>
+{% endblock %}

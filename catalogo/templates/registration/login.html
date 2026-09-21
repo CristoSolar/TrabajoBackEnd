@@ -1,0 +1,26 @@
+{% extends "catalogo/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block titulo %}Iniciar sesión{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card p-4">
+            <h1 class="h4 mb-3">Iniciar sesión</h1>
+            {% if form.errors %}
+                <div class="alert alert-danger">Usuario o contraseña incorrectos.</div>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                {{ form|crispy }}
+                <button type="submit" class="btn btn-primary w-100">Entrar</button>
+                <input type="hidden" name="next" value="{{ next }}">
+            </form>
+            <p class="text-muted small mt-3 mb-0">
+                La sesión caduca tras 30 minutos de inactividad.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

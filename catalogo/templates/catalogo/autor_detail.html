@@ -31,7 +31,7 @@
 {% else %}
 <div class="card p-4 text-center">
     <p class="mb-2">Este autor aún no tiene libros en el catálogo.</p>
-    <p class="mb-0"><a href="{% url 'catalogo:libro_crear' %}">Agrega su primer libro</a>.</p>
+    {% if perms.catalogo.add_libro %}<p class="mb-0"><a href="{% url 'catalogo:libro_crear' %}">Agrega su primer libro</a>.</p>{% endif %}
 </div>
 {% endif %}
 

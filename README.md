@@ -85,15 +85,19 @@ TrabajoBackEnd/
 └── catalogo/                     # Aplicación principal
     ├── models.py                 # Modelos Autor y Libro
     ├── views.py                  # Vistas basadas en clase (CRUD + listados)
+    │                             # y mixin SoloBibliotecario (login + permisos)
     ├── forms.py                  # LibroForm con validación de ISBN
     ├── urls.py                   # Rutas de la app (namespace "catalogo")
     ├── admin.py                  # Registro de modelos en el admin
-    ├── tests.py                  # Pruebas de modelos, formularios y vistas
-    ├── migrations/               # Migraciones versionadas (0001_initial.py)
+    ├── tests.py                  # Pruebas de modelos, formularios, vistas y permisos
+    ├── migrations/               # 0001_initial.py y 0002_grupo_bibliotecarios.py
     ├── management/commands/
     │   └── seed.py               # Comando para generar datos de prueba
+    ├── templates/registration/
+    │   ├── login.html            # Formulario de inicio de sesión
+    │   └── logged_out.html       # Confirmación de cierre de sesión
     └── templates/catalogo/
-        ├── base.html             # Plantilla base: bloques titulo y contenido
+        ├── base.html             # Base: bloques, estado de sesión y enlaces por permiso
         ├── _estado_badge.html    # Parcial reutilizado con {% include %}
         ├── libro_list.html       # Listado con búsqueda, filtro y paginación
         ├── libro_detail.html     # Detalle de libro
@@ -132,7 +136,7 @@ controlador. La capa de presentación de MVC vive en las plantillas.
 | **Faker** | Genera datos realistas en español (`es_ES`): nombres, países, ISBN. Soporta semilla fija para reproducibilidad. | Listas de datos escritas a mano: poco variadas y laboriosas de mantener. |
 
 SQLite no es un paquete: viene incluido en Python y es el motor por defecto de
-Django, suficiente para desarrollo y evaluación (ver sección 7 para producción).
+Django, suficiente para desarrollo y evaluación (ver sección 8 para producción).
 
 ---
 
@@ -205,7 +209,73 @@ Decisiones:
 
 ---
 
-## 7. Protocolos, hosting y dominios
+## 7. Autenticación, sesiones y permisos
+
+El catálogo es **público para consultar** (listados y detalle) y **restringido
+para modificar**. Crear, editar y eliminar libros exige sesión iniciada y el
+permiso correspondiente.
+
+### Rutas de autenticación
+
+| Ruta | Vista | Descripción |
+|---|---|---|
+| `/cuentas/login/` | `LoginView` de Django | Formulario de inicio de sesión (`registration/login.html`) |
+| `/cuentas/logout/` | `LogoutView` de Django | Cierre de sesión por POST (Django ≥ 5 ya no acepta GET) |
+| `/cuentas/password_change/` | `PasswordChangeView` | Incluida con `django.contrib.auth.urls` |
+| `/admin/` | Django Admin | Requiere `is_staff` |
+
+`config/urls.py` incluye `django.contrib.auth.urls`, de modo que no se reescribe
+lógica de autenticación ya resuelta y probada por el framework.
+
+### Política de sesiones
+
+En `config/settings.py`:
+
+| Ajuste | Valor | Motivo |
+|---|---|---|
+| `SESSION_COOKIE_AGE` | `1800` (30 min) | Caducidad de la sesión |
+| `SESSION_SAVE_EVERY_REQUEST` | `True` | Renueva la cookie en cada petición: el plazo cuenta desde la **última actividad**, no desde el login |
+| `SESSION_EXPIRE_AT_BROWSER_CLOSE` | `True` | La sesión no sobrevive al cierre del navegador |
+| `SESSION_COOKIE_HTTPONLY` | `True` | La cookie no es legible desde JavaScript (mitiga robo de sesión por XSS) |
+| `SESSION_COOKIE_SAMESITE` / `CSRF_COOKIE_SAMESITE` | `Lax` | Reduce la superficie de CSRF entre sitios |
+| `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` | `True` si `DEBUG=False` | Las cookies solo viajan por HTTPS en producción |
+| `SECURE_SSL_REDIRECT`, `SECURE_HSTS_*`, `X_FRAME_OPTIONS` | activos con `DJANGO_SSL_REDIRECT=1` | Redirección forzada a HTTPS y HSTS un año. Opt-in, porque exigir HTTPS en un entorno servido por HTTP plano deja la aplicación inaccesible |
+
+`DJANGO_DEBUG` ahora vale `0` por defecto: un despliegue que olvide definir la
+variable arranca en modo seguro, no en modo depuración.
+
+### Perfiles de rol
+
+La migración `catalogo/migrations/0002_grupo_bibliotecarios.py` crea el grupo
+**Bibliotecarios** con los permisos `add_libro`, `change_libro`, `delete_libro`,
+`add_autor` y `change_autor`. Al ser una migración de datos, el rol existe en
+cualquier entorno recién levantado sin pasos manuales, y `reverse` lo elimina.
+
+En `catalogo/views.py`, el mixin `SoloBibliotecario` combina
+`LoginRequiredMixin` y `PermissionRequiredMixin`:
+
+- usuario **anónimo** → redirección a `/cuentas/login/?next=…`;
+- usuario **autenticado sin permiso** → `403 Forbidden`;
+- usuario del grupo **Bibliotecarios** o superusuario → acceso.
+
+Las plantillas consultan `perms.catalogo.*` para no mostrar botones que el
+usuario no puede usar. El control real vive en las vistas: ocultar un enlace no
+es una medida de seguridad, solo evita un error previsible.
+
+Para asignar el rol: Django Admin → *Usuarios* → seleccionar el usuario →
+*Grupos* → añadir **Bibliotecarios**.
+
+### Pruebas de seguridad
+
+`catalogo/tests.py` incluye `SesionYPermisosTests`, que verifica por ejecución:
+redirección del anónimo, `403` del autenticado sin permiso, acceso del
+bibliotecario, que un `POST` anónimo a la ruta de borrado **no** elimina el
+libro, que `login`/`logout` crean y destruyen `_auth_user_id` en la sesión, y
+que el grupo trae los permisos CRUD.
+
+---
+
+## 8. Protocolos, hosting y dominios
 
 ### Recorrido de una petición en producción
 
@@ -250,7 +320,7 @@ mediante registros DNS (A o CNAME) al proveedor de hosting.
 
 ---
 
-## 8. Bitácora de uso de IA
+## 9. Bitácora de uso de IA
 
 Proyecto desarrollado con asistencia de **Claude Code (Anthropic)**. La tabla
 registra las interacciones relevantes y qué se hizo con cada sugerencia.
@@ -266,6 +336,9 @@ registra las interacciones relevantes y qué se hizo con cada sugerencia.
 | 7 | Pruebas automatizadas | Mínimo 5 pruebas: modelos, formulario y vistas | 7 pruebas: `__str__`, estado inicial, ISBN inválido/válido, listado 200, búsqueda filtra, y las 7 rutas responden 200 | **Aceptado**: se amplió lo pedido con la prueba de todas las rutas para cumplir el criterio de aceptación con evidencia, no supuestos |
 | 8 | Mensajes al usuario | Feedback en crear/editar/eliminar | `messages.success` en `form_valid` de cada vista, mostrado como alertas en `base.html` | **Aceptado**: en `DeleteView` el mensaje va en `form_valid` (Django ≥ 4) y no en `delete()`, que ya no se invoca en el flujo normal |
 | 9 | Estados vacíos | Que los listados vacíos orienten al usuario | Textos con la acción siguiente: enlace a crear libro, o instrucción de ejecutar el seed | **Aceptado**: cumple el requisito de no dejar solo "sin resultados" |
+| 11 | Sesiones y autenticación | Cumplir el criterio de sesiones: proteger el CRUD | Proponía `LoginRequiredMixin` en todas las vistas | **Adaptado**: dejar el catálogo público y proteger solo escritura se ajusta mejor al caso de uso (una biblioteca se consulta sin cuenta). Se añadió `PermissionRequiredMixin` con permisos por modelo, que la sugerencia inicial no contemplaba |
+| 12 | Perfiles de rol | Crear el grupo Bibliotecarios | Sugirió un comando de gestión a ejecutar manualmente | **Adaptado**: se implementó como migración de datos (`0002`), para que el rol exista en cualquier entorno sin un paso manual que se puede olvidar, y sea reversible |
+| 13 | Endurecimiento HTTPS | Cookies seguras y HSTS en producción | `SECURE_SSL_REDIRECT=True` fijo cuando `DEBUG=False` | **Corregido tras fallo real**: con ese valor fijo, las pruebas devolvieron `301` en lugar de `200`, porque el test runner fuerza `DEBUG=False`. Se hizo opt-in con `DJANGO_SSL_REDIRECT`; el fallo confirmó que también habría roto cualquier despliegue tras HTTP plano |
 | 10 | Seguridad del repo | No versionar secretos ni la BD | `.gitignore` antes del primer commit; `SECRET_KEY` reemplazada por una marcada como de desarrollo con comentario sobre variables de entorno | **Aceptado**: verificado con `git status` que `db.sqlite3` y `.venv/` no aparecen |
 
 ### Verificación de lo generado por IA
@@ -279,6 +352,8 @@ Todo el código sugerido se verificó ejecutando, no leyendo:
   14 prestados, 3 dados de baja.
 - `python manage.py seed --autores 3 --libros 5 --limpiar` → el flag `--limpiar`
   borra y regenera correctamente.
-- `python manage.py test` → **7 pruebas, todas pasan**, incluida la que recorre
-  las rutas de la aplicación verificando código 200 con el test client.
+- `python manage.py test` → **13 pruebas, todas pasan**, incluidas las seis de
+  sesión y permisos (anónimo redirigido, `403` sin permiso, acceso del
+  bibliotecario, borrado anónimo bloqueado, ciclo login/logout y permisos del
+  grupo).
 - `git status` antes del primer commit → `db.sqlite3` y `.venv/` ausentes.

@@ -24,7 +24,11 @@
     </dl>
 </div>
 
-<a href="{% url 'catalogo:libro_editar' libro.pk %}" class="btn btn-primary">Editar</a>
-<a href="{% url 'catalogo:libro_eliminar' libro.pk %}" class="btn btn-danger">Eliminar</a>
+{% if perms.catalogo.change_libro %}
+    <a href="{% url 'catalogo:libro_editar' libro.pk %}" class="btn btn-primary">Editar</a>
+{% endif %}
+{% if perms.catalogo.delete_libro %}
+    <a href="{% url 'catalogo:libro_eliminar' libro.pk %}" class="btn btn-danger">Eliminar</a>
+{% endif %}
 <a href="{% url 'catalogo:libro_lista' %}" class="btn btn-outline-secondary">Volver al listado</a>
 {% endblock %}

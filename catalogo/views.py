@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.db.models import Count
 from django.urls import reverse_lazy
 from django.views.generic import (
@@ -11,6 +12,16 @@ from django.views.generic import (
 
 from .forms import LibroForm
 from .models import Autor, Libro
+
+
+class SoloBibliotecario(LoginRequiredMixin, PermissionRequiredMixin):
+    """Exige sesión iniciada y el permiso concreto del modelo.
+
+    La consulta al catálogo es pública; crear, editar y eliminar quedan
+    restringidos al grupo "Bibliotecarios" (ver migración 0002).
+    """
+
+    raise_exception = False  # usuario anónimo -> redirige a LOGIN_URL
 
 
 class LibroListView(ListView):
@@ -39,7 +50,8 @@ class LibroDetailView(DetailView):
     model = Libro
 
 
-class LibroCreateView(CreateView):
+class LibroCreateView(SoloBibliotecario, CreateView):
+    permission_required = "catalogo.add_libro"
     model = Libro
     form_class = LibroForm
 
@@ -48,7 +60,8 @@ class LibroCreateView(CreateView):
         return super().form_valid(form)
 
 
-class LibroUpdateView(UpdateView):
+class LibroUpdateView(SoloBibliotecario, UpdateView):
+    permission_required = "catalogo.change_libro"
     model = Libro
     form_class = LibroForm
 
@@ -57,7 +70,8 @@ class LibroUpdateView(UpdateView):
         return super().form_valid(form)
 
 
-class LibroDeleteView(DeleteView):
+class LibroDeleteView(SoloBibliotecario, DeleteView):
+    permission_required = "catalogo.delete_libro"
     model = Libro
     success_url = reverse_lazy("catalogo:libro_lista")
 
