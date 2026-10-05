@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Libro
+from .models import Libro, normalizar_isbn
 
 
 class LibroForm(forms.ModelForm):
@@ -16,9 +16,4 @@ class LibroForm(forms.ModelForm):
         ]
 
     def clean_isbn(self):
-        isbn = self.cleaned_data["isbn"].replace("-", "").strip()
-        if not isbn.isdigit() or len(isbn) not in (10, 13):
-            raise forms.ValidationError(
-                "El ISBN debe tener 10 o 13 dígitos (se permiten guiones)."
-            )
-        return isbn
+        return normalizar_isbn(self.cleaned_data["isbn"])

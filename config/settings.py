@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'crispy_forms',
     'crispy_bootstrap5',
+    'rest_framework',
+    'rest_framework.authtoken',
     'catalogo',
 ]
 
@@ -176,3 +178,40 @@ if not DEBUG:
         SECURE_HSTS_PRELOAD = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     X_FRAME_OPTIONS = 'DENY'
+
+
+# API REST (Django REST Framework)
+# https://www.django-rest-framework.org/api-guide/settings/
+
+REST_FRAMEWORK = {
+    # Token para clientes externos; sesión para navegar la API logueado.
+    # La sesión de DRF exige CSRF en escrituras, así que no abre un hueco.
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'catalogo.authentication.TokenConExpiracion',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    # Lectura pública, escritura según los mismos permisos de modelo que
+    # usa la web (grupo Bibliotecarios).
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly',
+    ],
+    # La interfaz navegable solo en desarrollo; en producción, solo JSON.
+    'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer']
+    + (['rest_framework.renderers.BrowsableAPIRenderer'] if DEBUG else []),
+    'DEFAULT_PARSER_CLASSES': ['rest_framework.parsers.JSONParser'],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/min',
+        'user': '300/min',
+        'login': '5/min',  # frena fuerza bruta contra /api/v1/auth/token/
+    },
+}
+
+# Vida del token de API. Al vencer se borra y hay que pedir otro.
+API_TOKEN_TTL_HORAS = int(os.environ.get('API_TOKEN_TTL_HORAS', '8'))

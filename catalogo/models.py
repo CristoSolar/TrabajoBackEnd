@@ -1,5 +1,14 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
+
+
+def normalizar_isbn(valor):
+    """Quita guiones y exige 10 o 13 dígitos. Compartido por el formulario y la API."""
+    isbn = valor.replace("-", "").strip()
+    if not isbn.isdigit() or len(isbn) not in (10, 13):
+        raise ValidationError("El ISBN debe tener 10 o 13 dígitos (se permiten guiones).")
+    return isbn
 
 
 class Autor(models.Model):

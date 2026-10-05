@@ -1,6 +1,12 @@
+from datetime import timedelta
+
 from django.contrib.auth.models import Group, User
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
 
 from .forms import LibroForm
 from .models import Autor, Libro
@@ -166,3 +172,133 @@ class SesionYPermisosTests(TestCase):
             .permissions.values_list("codename", flat=True)
         )
         self.assertTrue({"add_libro", "change_libro", "delete_libro"} <= permisos)
+
+
+class ApiTests(APITestCase):
+    def setUp(self):
+        cache.clear()  # el throttling guarda contadores en caché entre pruebas
+        self.autor = Autor.objects.create(
+            nombre="Pablo Neruda", nacionalidad="Chile", anio_nacimiento=1904
+        )
+        self.libro = Libro.objects.create(
+            titulo="Canto general",
+            autor=self.autor,
+            isbn="9789560000001",
+            anio_publicacion=1950,
+            paginas=500,
+        )
+        self.bibliotecario = User.objects.create_user("biblio", password="clave-segura-123")
+        self.bibliotecario.groups.add(Group.objects.get(name="Bibliotecarios"))
+        self.lector = User.objects.create_user("lector", password="clave-segura-123")
+
+    def autenticar(self, username):
+        r = self.client.post(
+            "/api/v1/auth/token/",
+            {"username": username, "password": "clave-segura-123"},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 201)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {r.json()['token']}")
+        return r.json()
+
+    def nuevo_libro(self, **cambios):
+        datos = {
+            "titulo": "Veinte poemas de amor",
+            "autor": self.autor.pk,
+            "isbn": "978-956-00-0002-5",
+            "anio_publicacion": 1924,
+            "paginas": 120,
+        }
+        datos.update(cambios)
+        return self.client.post("/api/v1/libros/", datos, format="json")
+
+    def test_listado_publico_en_json_paginado(self):
+        r = self.client.get("/api/v1/libros/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/json")
+        cuerpo = r.json()
+        self.assertEqual(set(cuerpo), {"count", "next", "previous", "results"})
+        libro = cuerpo["results"][0]
+        self.assertEqual(libro["autor_nombre"], "Pablo Neruda")
+        self.assertEqual(libro["estado_display"], "Disponible")
+
+    def test_detalle_y_404(self):
+        self.assertEqual(self.client.get(f"/api/v1/libros/{self.libro.pk}/").status_code, 200)
+        r = self.client.get("/api/v1/libros/9999/")
+        self.assertEqual(r.status_code, 404)
+        self.assertIn("detail", r.json())
+
+    def test_autores_incluyen_conteo_de_libros(self):
+        r = self.client.get(f"/api/v1/autores/{self.autor.pk}/")
+        self.assertEqual(r.json()["total_libros"], 1)
+
+    def test_filtro_por_estado_y_busqueda(self):
+        Libro.objects.create(
+            titulo="Residencia en la tierra", autor=self.autor, isbn="9789560000003",
+            anio_publicacion=1935, paginas=200, estado=Libro.Estado.PRESTADO,
+        )
+        r = self.client.get("/api/v1/libros/?estado=prestado")
+        self.assertEqual([l["titulo"] for l in r.json()["results"]], ["Residencia en la tierra"])
+        r = self.client.get("/api/v1/libros/?search=canto")
+        self.assertEqual(r.json()["count"], 1)
+
+    def test_anonimo_no_puede_escribir(self):
+        self.assertEqual(self.nuevo_libro().status_code, 401)
+        r = self.client.delete(f"/api/v1/libros/{self.libro.pk}/")
+        self.assertEqual(r.status_code, 401)
+
+    def test_credenciales_invalidas(self):
+        r = self.client.post(
+            "/api/v1/auth/token/", {"username": "biblio", "password": "mala"}, format="json"
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertNotIn("token", r.json())
+
+    def test_usuario_sin_rol_recibe_403(self):
+        self.autenticar("lector")
+        self.assertEqual(self.nuevo_libro().status_code, 403)
+
+    def test_crud_completo_del_bibliotecario(self):
+        self.autenticar("biblio")
+        r = self.nuevo_libro()
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json()["isbn"], "9789560000025")  # guiones normalizados
+        url = f"/api/v1/libros/{r.json()['id']}/"
+        r = self.client.patch(url, {"estado": "PRESTADO"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["estado"], "PRESTADO")
+        datos = {**r.json(), "paginas": 130}
+        self.assertEqual(self.client.put(url, datos, format="json").status_code, 200)
+        self.assertEqual(self.client.delete(url).status_code, 204)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_validaciones_devuelven_400_por_campo(self):
+        self.autenticar("biblio")
+        r = self.nuevo_libro(isbn="abc")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("isbn", r.json())
+        r = self.nuevo_libro(titulo="Canto general", isbn="9789560000009")
+        self.assertEqual(r.status_code, 400)  # título + autor repetido
+
+    def test_token_expirado_es_rechazado_y_borrado(self):
+        self.autenticar("biblio")
+        Token.objects.update(created=timezone.now() - timedelta(hours=9))
+        self.assertEqual(self.nuevo_libro().status_code, 401)
+        self.assertFalse(Token.objects.exists())
+
+    def test_logout_revoca_el_token(self):
+        self.autenticar("biblio")
+        self.assertEqual(self.client.delete("/api/v1/auth/logout/").status_code, 204)
+        self.assertEqual(self.nuevo_libro().status_code, 401)
+
+    def test_nuevo_login_invalida_el_token_anterior(self):
+        viejo = self.autenticar("biblio")["token"]
+        self.autenticar("biblio")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {viejo}")
+        self.assertEqual(self.nuevo_libro().status_code, 401)
+
+    def test_login_limitado_contra_fuerza_bruta(self):
+        for _ in range(5):
+            self.client.post("/api/v1/auth/token/", {"username": "biblio", "password": "x"})
+        r = self.client.post("/api/v1/auth/token/", {"username": "biblio", "password": "x"})
+        self.assertEqual(r.status_code, 429)
